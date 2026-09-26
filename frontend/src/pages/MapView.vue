@@ -65,7 +65,10 @@ const selectedRow = computed(() =>
   selectedId.value == null ? null : scoreOf(selectedId.value)
 )
 
-const selectedVetos = computed(() => uiStore.vetosOf(selectedId.value))
+const selectedVetos = computed(() => uiStore.activeVetosOf(selectedId.value))
+const liftedVetos = computed(() =>
+  uiStore.vetosOf(selectedId.value).filter((v) => v.status === 'lifted')
+)
 
 /** 选中营位到最近营位的距离，作为现场通行参考 */
 const nearest = computed(() => {
@@ -146,10 +149,15 @@ const gradeStats = computed(() => {
       </div>
       <div class="stat-card">
         <div class="stat-card__label">否决标记</div>
-        <div class="stat-card__value" :style="{ color: uiStore.vetoTotal ? '#b91c1c' : undefined }">
+        <div
+          class="stat-card__value"
+          :style="{ color: uiStore.vetoedSiteIds.length ? '#b91c1c' : undefined }"
+        >
           {{ uiStore.vetoedSiteIds.length }}
         </div>
-        <div class="stat-card__extra">共 {{ uiStore.vetoTotal }} 条否决记录</div>
+        <div class="stat-card__extra">
+          生效 {{ uiStore.activeVetoTotal }} 条 · 累计台账 {{ uiStore.vetoTotal }} 条
+        </div>
       </div>
     </div>
 
@@ -261,6 +269,14 @@ const gradeStats = computed(() => {
           {{ v.type }}
         </el-tag>
         <span class="weight-note">{{ selectedVetos.map((v) => v.description).join(' ｜ ') }}</span>
+      </div>
+      <div v-if="liftedVetos.length" class="veto-block veto-block--lifted">
+        <el-tag v-for="v in liftedVetos" :key="v.id" type="success" size="small" effect="plain" class="mr6">
+          {{ v.type }}（已解除）
+        </el-tag>
+        <span class="weight-note">
+          {{ liftedVetos.map((v) => `${v.liftedBy ?? '—'} ${formatDate(v.liftedAt ?? '')}：${v.liftReason ?? ''}`).join(' ｜ ') }}
+        </span>
       </div>
       <div class="detail-actions">
         <el-button type="primary" size="small" @click="router.push(`/sites/${selectedSite.id}`)">

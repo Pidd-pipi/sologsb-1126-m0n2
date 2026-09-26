@@ -58,7 +58,8 @@ onMounted(async () => {
       <div class="app-aside">
         <el-tag type="info" effect="plain" size="small">{{ mapModeText }}</el-tag>
         <span class="app-stat">
-          营位 {{ siteStore.total }} · 方案 {{ profileStore.total }} · 否决 {{ uiStore.vetoTotal }}
+          营位 {{ siteStore.total }} · 方案 {{ profileStore.total }} · 生效否决
+          {{ uiStore.activeVetoTotal }}
         </span>
       </div>
     </el-header>

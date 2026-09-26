@@ -1,10 +1,26 @@
 /**
  * RiskVeto（风险否决项）—— 命中即标红该营位并禁止评 A。
  * 属于「一票否决」类硬约束，与得分体系解耦。
+ *
+ * 解除否决不会删除记录：状态由 active 变为 lifted，原判定（类型、说明、判定人、
+ * 判定日期）原样保留，同时记录解除人、解除时间与解除原因，台账与营位详情可长期追溯。
  */
 
 /** 否决类型 */
 export type VetoType = '河道内' | '山洪沟' | '孤树下' | '崖底落石区' | '陡坡'
+
+/** 否决状态：active 生效中；lifted 已解除（记录保留，仅不再参与短路判定） */
+export type VetoStatus = 'active' | 'lifted'
+
+/** 解除否决时必填的复核信息 */
+export interface VetoLiftInfo {
+  /** 解除（复核）人 */
+  liftedBy: string
+  /** 解除时间（本地时间 YYYY-MM-DDTHH:mm，与 el-date-picker datetime 的 value-format 对齐） */
+  liftedAt: string
+  /** 解除原因（复核依据） */
+  liftReason: string
+}
 
 export interface RiskVeto {
   /** 主键，自增 */
@@ -19,8 +35,21 @@ export interface RiskVeto {
   judge: string
   /** 判定日期（YYYY-MM-DD） */
   judgedAt: string
+  /** 状态：生效中 / 已解除 */
+  status: VetoStatus
+  /** 解除人；生效中为 null */
+  liftedBy: string | null
+  /** 解除时间；生效中为 null */
+  liftedAt: string | null
+  /** 解除原因；生效中为 null */
+  liftReason: string | null
   createdAt: string
   updatedAt: string
+}
+
+/** 是否为仍在生效的否决记录（未解除）。 */
+export function isVetoActive(v: RiskVeto | null | undefined): boolean {
+  return !!v && v.status !== 'lifted'
 }
 
 export const VETO_TYPES: VetoType[] = ['河道内', '山洪沟', '孤树下', '崖底落石区', '陡坡']

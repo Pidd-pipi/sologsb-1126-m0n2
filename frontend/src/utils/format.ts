@@ -67,6 +67,15 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/** 当前本地时间，格式 YYYY-MM-DDTHH:mm（el-date-picker datetime 的 value-format）。 */
+export function nowLocalInput(): string {
+  const d = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
+    d.getMinutes()
+  )}`
+}
+
 /** ISO / 日期文本转本地展示。 */
 export function formatDateTime(value: string): string {
   if (!value) return '—'

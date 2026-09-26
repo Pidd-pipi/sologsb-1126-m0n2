@@ -239,7 +239,13 @@ function openDetail(siteId: number | undefined): void {
         <el-table-column label="否决项" min-width="180">
           <template #default="{ row }">
             <template v-if="row.vetoed">
-              <el-tag v-for="v in uiStore.vetosOf(row.siteId)" :key="v.id" type="danger" size="small" class="mr6">
+              <el-tag
+                v-for="v in uiStore.activeVetosOf(row.siteId)"
+                :key="v.id"
+                type="danger"
+                size="small"
+                class="mr6"
+              >
                 {{ v.type }}
               </el-tag>
             </template>

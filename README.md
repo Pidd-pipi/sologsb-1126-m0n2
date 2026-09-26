@@ -40,7 +40,7 @@ docker compose down
 | Campsite 营位 | `frontend/src/types/campsite.ts` | 营位编号、名称、所属营地、经纬度、海拔、坡度、坡向、地表类型、可容帐篷数、平整度评分、进出方式、默认方案 |
 | FactorAssessment 因子评估 | `frontend/src/types/factor.ts` | 所属营位、水源距离、风向与风力等级、信号强度、日照时长、落石落枝风险、植被遮蔽度、离车距离、离步道距离、评估人、评估日期 |
 | ScoreProfile 权重方案 | `frontend/src/types/score.ts` | 方案名、各因子权重（0-100）、归一化方式（极差归一 / 阈值分段）、A/B/C 等级阈值、适用季节、是否启用 |
-| RiskVeto 风险否决项 | `frontend/src/types/veto.ts` | 营位 id、否决类型（河道内 / 山洪沟 / 孤树下 / 崖底落石区 / 陡坡）、说明、判定人、判定日期 |
+| RiskVeto 风险否决项 | `frontend/src/types/veto.ts` | 营位 id、否决类型（河道内 / 山洪沟 / 孤树下 / 崖底落石区 / 陡坡）、说明、判定人、判定日期、状态（生效中 / 已解除）、解除人、解除时间、解除原因 |
 
 ### IndexedDB 版本与升级迁移
 
@@ -49,6 +49,9 @@ docker compose down
 - **v1**：建立 `sites`（营位）与 `factors`（因子评估）两张表。
 - **v2**：新增 `profiles`（权重方案）表，并为 `factors` 补 `siteId` 索引，让「按营位取因子」走索引；同时为存量因子补齐 `shade`、`distanceToCar`、`distanceToTrail` 缺省值。
 - **v3**：新增 `vetos`（风险否决）表，并为存量营位回填 `defaultProfileId`（取当前启用方案的 id）与新增字段缺省值。
+- **v4**：为 `vetos` 补 `status` 索引并把存量记录回填为「生效中」、补齐解除留痕字段（`liftedBy` / `liftedAt` / `liftReason`）。解除否决不再删除记录。
+
+> **解除留痕**：解除一条否决时，原判定（类型、说明、判定人、判定日期）原样保留在台账与营位详情中，仅把状态置为「已解除」并记录解除人、解除时间与原因；名次表、地图着色与 A/B/C 等级按剩余**生效中**的否决重新短路判定。同一营位之后再次登记否决时，限制自动重新生效。
 
 ## 四、页面与路由
 
