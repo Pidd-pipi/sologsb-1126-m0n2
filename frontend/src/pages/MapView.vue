@@ -65,7 +65,7 @@ const selectedRow = computed(() =>
   selectedId.value == null ? null : scoreOf(selectedId.value)
 )
 
-const selectedVetos = computed(() => uiStore.vetosOf(selectedId.value))
+const selectedVetos = computed(() => uiStore.activeVetosOf(selectedId.value))
 
 /** 选中营位到最近营位的距离，作为现场通行参考 */
 const nearest = computed(() => {
@@ -146,10 +146,12 @@ const gradeStats = computed(() => {
       </div>
       <div class="stat-card">
         <div class="stat-card__label">否决标记</div>
-        <div class="stat-card__value" :style="{ color: uiStore.vetoTotal ? '#b91c1c' : undefined }">
+        <div class="stat-card__value" :style="{ color: uiStore.activeVetoTotal ? '#b91c1c' : undefined }">
           {{ uiStore.vetoedSiteIds.length }}
         </div>
-        <div class="stat-card__extra">共 {{ uiStore.vetoTotal }} 条否决记录</div>
+        <div class="stat-card__extra">
+          生效否决 {{ uiStore.activeVetoTotal }} 条 · 历史共 {{ uiStore.vetoTotal }} 条
+        </div>
       </div>
     </div>
 

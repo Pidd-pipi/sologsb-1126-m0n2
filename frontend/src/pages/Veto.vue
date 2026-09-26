@@ -7,12 +7,13 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import GradeBadge from '@/components/common/GradeBadge.vue'
+import VetoReleaseDialog from '@/components/common/VetoReleaseDialog.vue'
 import { useSiteStore } from '@/stores/siteStore'
 import { useProfileStore } from '@/stores/profileStore'
 import { useUiStore } from '@/stores/uiStore'
 import { useRanking } from '@/hooks/useRanking'
-import { VETO_TYPES, VETO_HINTS } from '@/types/veto'
-import type { VetoType } from '@/types/veto'
+import { VETO_TYPES, VETO_HINTS, isVetoActive } from '@/types/veto'
+import type { RiskVeto, VetoRelease, VetoType } from '@/types/veto'
 import { formatDate, todayIso } from '@/utils/format'
 
 const router = useRouter()
@@ -57,9 +58,9 @@ const selectedRow = computed(() =>
   form.siteId == null ? null : scoreOf(form.siteId)
 )
 
-const selectedVetos = computed(() => uiStore.vetosOf(form.siteId))
+const selectedVetos = computed(() => uiStore.activeVetosOf(form.siteId))
 
-/** 全部否决记录，附带营位信息，便于一览 */
+/** 全部否决记录（含已解除留痕），附带营位信息，便于一览 */
 const vetoLedger = computed(() =>
   uiStore.vetos
     .map((v) => {
@@ -71,7 +72,8 @@ const vetoLedger = computed(() =>
         siteName: site?.name ?? '营位已删除',
         campName: site?.campName ?? '—',
         grade: row?.grade ?? 'C',
-        total: row?.total ?? 0
+        total: row?.total ?? 0,
+        stillVetoed: uiStore.isVetoed(v.siteId)
       }
     })
     .sort((a, b) => (a.judgedAt < b.judgedAt ? 1 : -1))
@@ -94,6 +96,8 @@ async function submit(): Promise<void> {
       description: form.description.trim(),
       judge: form.judge.trim() || '未署名',
       judgedAt: form.judgedAt || todayIso(),
+      status: 'active',
+      release: null,
       createdAt: '',
       updatedAt: ''
     })
@@ -107,10 +111,24 @@ async function submit(): Promise<void> {
   }
 }
 
-async function removeOne(id: number | undefined): Promise<void> {
+/* --------------------------- 解除否决（留痕） --------------------------- */
+const releaseDialogOpen = ref(false)
+const releaseTarget = ref<RiskVeto | null>(null)
+
+function openRelease(row: RiskVeto): void {
+  releaseTarget.value = row
+  releaseDialogOpen.value = true
+}
+
+async function confirmRelease(release: VetoRelease): Promise<void> {
+  const id = releaseTarget.value?.id
   if (typeof id !== 'number') return
-  await uiStore.removeVeto(id)
-  ElMessage.success('已解除该否决项，等级将重新按得分判定')
+  try {
+    await uiStore.releaseVeto(id, release)
+    ElMessage.success('已解除该否决项，复核信息已留痕，等级按剩余生效否决重新判定')
+  } catch (err) {
+    ElMessage.error(`解除失败：${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 function focusSite(id: number | undefined): void {
@@ -140,7 +158,7 @@ function focusSite(id: number | undefined): void {
       :closable="false"
       show-icon
       title="否决与得分解耦"
-      description="否决记录不参与加权求和，而是在得分算出后做短路处理：只要命中任一条，等级直接判定为 C。解除否决后等级会按原得分重新判定。"
+      description="否决记录不参与加权求和，而是在得分算出后做短路处理：只要命中任一条生效否决，等级直接判定为 C。解除需填写解除人、时间与原因并留痕，解除后等级按剩余生效否决重新判定。"
     />
 
     <div class="veto-layout">
@@ -250,7 +268,7 @@ function focusSite(id: number | undefined): void {
               <strong>{{ selectedSite.slope }}° · {{ selectedSite.elevation }} m</strong>
             </div>
             <div class="preview-item">
-              <span>现有否决</span>
+              <span>生效否决</span>
               <strong>{{ selectedVetos.length }} 条</strong>
             </div>
           </div>
@@ -277,10 +295,12 @@ function focusSite(id: number | undefined): void {
     <section class="panel">
       <div class="panel__head">
         <h2>否决台账</h2>
-        <span class="weight-note">共 {{ vetoLedger.length }} 条</span>
+        <span class="weight-note">
+          共 {{ vetoLedger.length }} 条 · 生效中 {{ uiStore.activeVetoTotal }} 条
+        </span>
       </div>
       <el-table v-if="vetoLedger.length" :data="vetoLedger" size="small" border stripe>
-        <el-table-column label="营位" min-width="190">
+        <el-table-column label="营位" min-width="170">
           <template #default="{ row }">
             <el-link type="primary" underline="never" @click="focusSite(row.siteId)">
               {{ row.siteCode }} · {{ row.siteName }}
@@ -288,30 +308,65 @@ function focusSite(id: number | undefined): void {
             <div class="cell-sub">{{ row.campName }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="否决类型" width="126">
+        <el-table-column label="否决类型" width="106">
           <template #default="{ row }">
             <el-tag type="danger" size="small">{{ row.type }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="说明" min-width="260" />
-        <el-table-column prop="judge" label="判定人" width="100" />
-        <el-table-column label="判定日期" width="112">
+        <el-table-column prop="description" label="说明" min-width="220" />
+        <el-table-column prop="judge" label="判定人" width="86" />
+        <el-table-column label="判定日期" width="104">
           <template #default="{ row }">{{ formatDate(row.judgedAt) }}</template>
         </el-table-column>
-        <el-table-column label="当前等级" width="170">
+        <el-table-column label="状态" width="84" align="center">
           <template #default="{ row }">
-            <GradeBadge :grade="row.grade" :score="row.total" vetoed size="small" :show-label="false" />
+            <el-tag v-if="isVetoActive(row)" type="danger" effect="dark" size="small">生效中</el-tag>
+            <el-tag v-else type="info" size="small">已解除</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="解除复核" min-width="210">
+          <template #default="{ row }">
+            <template v-if="row.release">
+              <div>{{ row.release.releasedBy }} · {{ formatDate(row.release.releasedAt) }}</div>
+              <div class="cell-sub">{{ row.release.reason }}</div>
+            </template>
+            <span v-else class="cell-sub">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="当前等级" width="160">
+          <template #default="{ row }">
+            <GradeBadge
+              :grade="row.grade"
+              :score="row.total"
+              :vetoed="row.stillVetoed"
+              size="small"
+              :show-label="false"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button size="small" text type="primary" @click="focusSite(row.siteId)">定位</el-button>
-            <el-button size="small" text type="danger" @click="removeOne(row.id)">解除</el-button>
+            <el-button
+              v-if="isVetoActive(row)"
+              size="small"
+              text
+              type="danger"
+              @click="openRelease(row)"
+            >
+              解除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
       <p v-else class="panel__hint">暂无否决记录。登记后名次表与地图会立即同步标红。</p>
     </section>
+
+    <VetoReleaseDialog
+      v-model="releaseDialogOpen"
+      :veto="releaseTarget"
+      @confirm="confirmRelease"
+    />
   </div>
 </template>
 

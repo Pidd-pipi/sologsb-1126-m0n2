@@ -6,6 +6,19 @@
 /** 否决类型 */
 export type VetoType = '河道内' | '山洪沟' | '孤树下' | '崖底落石区' | '陡坡'
 
+/** 否决状态：生效中 / 已解除（解除不删记录，留痕可追溯） */
+export type VetoStatus = 'active' | 'released'
+
+/** 解除复核信息：解除时三项均必填，随原判定一起留档 */
+export interface VetoRelease {
+  /** 解除人（复核人） */
+  releasedBy: string
+  /** 解除日期（YYYY-MM-DD） */
+  releasedAt: string
+  /** 解除原因（复核结论） */
+  reason: string
+}
+
 export interface RiskVeto {
   /** 主键，自增 */
   id?: number
@@ -19,8 +32,17 @@ export interface RiskVeto {
   judge: string
   /** 判定日期（YYYY-MM-DD） */
   judgedAt: string
+  /** 状态；仅生效中的否决参与标红与压等级 */
+  status: VetoStatus
+  /** 解除复核信息；生效中为 null */
+  release: VetoRelease | null
   createdAt: string
   updatedAt: string
+}
+
+/** 是否仍在生效（未解除）；历史数据缺省视为生效中 */
+export function isVetoActive(v: Pick<RiskVeto, 'status'>): boolean {
+  return v.status !== 'released'
 }
 
 export const VETO_TYPES: VetoType[] = ['河道内', '山洪沟', '孤树下', '崖底落石区', '陡坡']

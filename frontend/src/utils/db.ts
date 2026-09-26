@@ -5,6 +5,7 @@
  *   v1 建 sites / factors 两张表
  *   v2 新增 profiles 表，并为 factors 补 siteId 索引
  *   v3 新增 vetos 表，并为存量营位回填默认权重方案
+ *   v4 否决解除改为留痕：为存量否决补 status / release 缺省值
  */
 import Dexie, { type Table } from 'dexie'
 import type { Campsite } from '@/types/campsite'
@@ -15,7 +16,7 @@ import type { RiskVeto } from '@/types/veto'
 
 export const DB_NAME = 'gbcampsite-db'
 /** 当前数据结构版本号 */
-export const DB_VERSION = 3
+export const DB_VERSION = 4
 
 export class GbCampsiteDatabase extends Dexie {
   sites!: Table<Campsite, number>
@@ -53,7 +54,7 @@ export class GbCampsiteDatabase extends Dexie {
       })
 
     // v3：新增风险否决表；为存量营位回填默认方案 id 与新增字段缺省值
-    this.version(DB_VERSION)
+    this.version(3)
       .stores({
         sites: '++id, code, name, campName, surface, access, defaultProfileId, updatedAt',
         factors: '++id, siteId, assessedAt, assessor',
@@ -74,6 +75,17 @@ export class GbCampsiteDatabase extends Dexie {
             if (typeof s.tentCapacity !== 'number') s.tentCapacity = 1
           })
       })
+
+    // v4：否决解除留痕——为存量否决补 status / release 缺省值（一律视为生效中）
+    this.version(DB_VERSION).upgrade(async (tx) => {
+      await tx
+        .table('vetos')
+        .toCollection()
+        .modify((v: Partial<RiskVeto>) => {
+          if (v.status !== 'released') v.status = 'active'
+          if (v.release === undefined) v.release = null
+        })
+    })
   }
 }
 
@@ -353,6 +365,8 @@ function seedVetos(): RiskVeto[] {
       description: '营位北缘距常水位仅 8 米，暴雨后水位上涨会直接漫过沙地。',
       judge: '陈巡',
       judgedAt: '2024-04-11',
+      status: 'active',
+      release: null,
       createdAt: SEED_TS,
       updatedAt: SEED_TS
     },
@@ -363,6 +377,24 @@ function seedVetos(): RiskVeto[] {
       description: '台地中央有一株孤立高杉，雷雨时存在雷击与断枝风险。',
       judge: '李营',
       judgedAt: '2024-04-11',
+      status: 'active',
+      release: null,
+      createdAt: SEED_TS,
+      updatedAt: SEED_TS
+    },
+    {
+      id: 3,
+      siteId: 4,
+      type: '崖底落石区',
+      description: '崖壁西侧凹槽上方有新鲜碎屑，判定为落石隐患区。',
+      judge: '周勘',
+      judgedAt: '2024-04-09',
+      status: 'released',
+      release: {
+        releasedBy: '李营',
+        releasedAt: '2024-04-15',
+        reason: '已清理坡面浮石并加装被动防护网，4 月 15 日现场复核无新碎屑，解除否决。'
+      },
       createdAt: SEED_TS,
       updatedAt: SEED_TS
     }
